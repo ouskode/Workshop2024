@@ -1,8 +1,10 @@
 # Use the official Python image from the Docker Hub
-FROM python:3.11
+FROM python:3.11-slim
+
+WORKDIR /app
 
 # Copy the rest of the application code into the container
-COPY /app .
+COPY . .
 
 RUN pip install --upgrade pip
 
