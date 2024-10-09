@@ -22,9 +22,9 @@ async function ensureFreshToken(req) {
     if (!req.session.tokens) {
       throw new Error('Aucun token trouvé');
     }
-  
+
     client.setCredentials(req.session.tokens);
-  
+
     // Vérifiez si le token expire dans moins de 5 minutes (300000 ms)
     const expiryDate = client.credentials.expiry_date;
     if (expiryDate && expiryDate < Date.now() + 300000) {
@@ -55,11 +55,11 @@ app.get('/auth/callback', async (req, res) => {
   const { code } = req.query;
   const { tokens } = await client.getToken(code);
   client.setCredentials(tokens);
-  
+
   // Sauvegardez les tokens dans la session
   req.session.tokens = tokens;
 
-  res.send('Vous êtes authentifié avec Google Fit !');
+  res.redirect('http://localhost:8501');
 });
 
 app.get('/fit/steps', async (req, res) => {
@@ -261,10 +261,10 @@ app.get('/fit', async (req, res) => {
   }
 
   client.setCredentials(req.session.tokens);
-  
+
   // Utilisez l'API Google Fit pour récupérer des données (exemple)
   const fitness = google.fitness({ version: 'v1', auth: client });
-  
+
   // Exemple de récupération des données d'activité
   fitness.users.dataSources.list({ userId: 'me' }, (err, response) => {
     if (err) {
@@ -301,7 +301,7 @@ app.get('/fit/:uid', async (req, res) => {
         res.status(500).send('Erreur lors de la récupération des données Google Fit.');
     }
 });
-  
+
 
 app.get('/fit/devices', async (req, res) => {
     if (!req.session.tokens) {

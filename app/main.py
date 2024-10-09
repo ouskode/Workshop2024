@@ -8,7 +8,7 @@ def dialog():
     google = st.button("Google", icon="🔎", use_container_width=True)
     if google:
         st.success("Redirecting to login...")
-        st.write('<meta http-equiv="refresh" content="0; url=http://192.168.1.104:3080/auth/login">', unsafe_allow_html=True)
+        st.write('<meta http-equiv="refresh" content="0; url=http://localhost:3000/auth/login">', unsafe_allow_html=True)
         st.session_state.dialog = {"auth": "Google"}
         st.rerun()
         st.success("You have successfully signed up with Google")
@@ -22,7 +22,10 @@ def dialog():
 st.set_page_config(
     page_title="Hello",
     page_icon="👋",
+    layout="centered",
+    initial_sidebar_state="collapsed",
 )
+
 if "dialog" not in st.session_state:
     dialog()
 

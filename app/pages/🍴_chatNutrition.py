@@ -1,7 +1,6 @@
 import streamlit as st
 from langchain_groq import ChatGroq
 from langchain_community.document_loaders import JSONLoader
-import getpass
 import os
 import json
 
@@ -15,7 +14,7 @@ def create_json_file(dict_data):
 
 
 
-st.title("📝 Nutrition Chat ")
+st.title("🍽️ Nutrition Chat 👨‍⚕️")
 
 @st.dialog("insert your information")
 def dialog():
@@ -37,7 +36,7 @@ def dialog():
         st.success("Your information has been submitted")
 
 if "dialog" not in st.session_state:
-    st.button("Insert your information", on_click=dialog())
+    dialog()
 
 if "dialog" in st.session_state:
     file_path = create_json_file(st.session_state.dialog)
@@ -61,17 +60,18 @@ if "dialog" in st.session_state:
         max_tokens=None,
         timeout=None,
         max_retries=2,
+        streaming=True,
         )
 
         messages = [
         (
             "system",
-            "You are a helpful assistant that give advice of nutrition.",
+            "You are a helpful assistant that give advice of nutrition. When you put emoji for the answer, it will be more friendly for the user. When you have food recipe you can format that in table.",
         ),
-        ("human", f"Here's an article:\n\n<article>{article}</article>\n\n{question}"),
+        ("human", f"Here's an article of information of user:\n\n<article>{article}</article>\n\n{question}"),
         ]
-        response = llm.invoke(messages)
+        response = llm.stream(messages)
 
         with st.spinner("Thinking..."):
             st.write("### Answer")
-            st.write(response.content)
+            st.write_stream(response)

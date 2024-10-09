@@ -1,11 +1,11 @@
 services:
-  app:
-    build:
-      context: app/
-      dockerfile: Dockerfile
-    ports:
-      - "8051:8501"
-  
+  # app:
+  #   build:
+  #     context: app/
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "8051:8501"
+
   server:
     build:
       context: server/
