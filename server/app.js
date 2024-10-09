@@ -4,91 +4,70 @@ const cookieSession = require('cookie-session');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 const client = new google.auth.OAuth2(
-    process.env.CLIENT_ID,  // Remplacez par votre ID client
-    process.env.CLIENT_SECRET, // Remplacez par votre secret client
-    process.env.REDIRECT_URI // URI de redirection
+    process.env.CLIENT_ID,
+    process.env.CLIENT_SECRET,
+    process.env.REDIRECT_URI
 );
 
-// Middleware pour gérer les sessions
 app.use(cookieSession({
-  maxAge: 24 * 60 * 60 * 1000, // 24 heures
-  keys: [process.env.SECRET_COOKIE], // Remplacez par une clé secrète
+  maxAge: 24 * 60 * 60 * 1000,
+  keys: [process.env.SECRET_COOKIE],
 }));
-
-async function ensureFreshToken(req) {
-    if (!req.session.tokens) {
-      throw new Error('Aucun token trouvé');
-    }
-  
-    client.setCredentials(req.session.tokens);
-  
-    // Vérifiez si le token expire dans moins de 5 minutes (300000 ms)
-    const expiryDate = client.credentials.expiry_date;
-    if (expiryDate && expiryDate < Date.now() + 300000) {
-      try {
-        const { credentials } = await client.refreshAccessToken();
-        // Mettez à jour les tokens dans la session
-        req.session.tokens = credentials;
-      } catch (err) {
-        throw new Error('Erreur lors du renouvellement du token : ' + err.message);
-      }
-    }
-  }
 
 app.get('/', (req, res) => {
     res.send('EPITECH > EPSI > WIS');
 });
 
-// Route pour démarrer le processus d'authentification
 app.get('/auth/login', (req, res) => {
   const authUrl = client.generateAuthUrl({
-    scope: ['https://www.googleapis.com/auth/fitness.activity.read'],
+    scope: [
+        'https://www.googleapis.com/auth/fitness.activity.read',
+        'https://www.googleapis.com/auth/fitness.body.read',
+        'https://www.googleapis.com/auth/fitness.nutrition.read',
+        'https://www.googleapis.com/auth/fitness.sleep.read',
+        'https://www.googleapis.com/auth/fitness.heart_rate.read',
+        'https://www.googleapis.com/auth/fitness.blood_glucose.read',
+        'https://www.googleapis.com/auth/fitness.blood_pressure.read',
+        'https://www.googleapis.com/auth/fitness.body_temperature.read',
+        'https://www.googleapis.com/auth/fitness.location.read',
+        'https://www.googleapis.com/auth/fitness.oxygen_saturation.read',
+        'https://www.googleapis.com/auth/fitness.reproductive_health.read'
+    ],
+    prompt: 'consent',
   });
   res.redirect(authUrl);
 });
 
-// Route de retour après l'authentification
 app.get('/auth/callback', async (req, res) => {
   const { code } = req.query;
   const { tokens } = await client.getToken(code);
   client.setCredentials(tokens);
   
-  // Sauvegardez les tokens dans la session
   req.session.tokens = tokens;
 
   res.send('Vous êtes authentifié avec Google Fit !');
 });
 
-app.get('/fit/steps', async (req, res) => {
+async function getRequest(req, res, dataSourceId, dataTypeName, startTimeMillis, endTimeMillis) {
     if (!req.session.tokens) {
         return res.redirect('/auth/login');
     }
-
-    await ensureFreshToken(req);
 
     client.setCredentials(req.session.tokens);
 
     const fitness = google.fitness({ version: 'v1', auth: client });
 
-    // Calculer les timestamps pour les 7 derniers jours
-    const endTime = Date.now(); // Maintenant
-    const startTime = endTime - 7 * 24 * 60 * 60 * 1000; // 7 jours en millisecondes
-
-    // ID de la source de données pour les pas
-    const dataSourceId = 'derived:com.google.step_count.delta:com.google.ios.fit:appleinc.:iphone:770f269f:top_level';
-
-    // Créer une requête d'agrégation
     const requestBody = {
         aggregateBy: [{
-            dataTypeName: 'com.google.step_count.delta',
-            dataSourceId: dataSourceId,
+            dataTypeName,
+            dataSourceId,
         }],
         bucketByTime: { durationMillis: 24 * 60 * 60 * 1000 }, // 1 jour
-        startTimeMillis: startTime,
-        endTimeMillis: endTime,
+        startTimeMillis,
+        endTimeMillis,
     };
 
     try {
@@ -98,163 +77,91 @@ app.get('/fit/steps', async (req, res) => {
         });
         res.send(response.data);
     } catch (err) {
-        return res.status(500).send('Erreur lors de la récupération des données de pas : ' + err.message);
+        return res.status(500).send('Erreur lors de la récupération des données : ' + err.message);
     }
+}
+
+app.get('/fit/steps', async (req, res) => {
+    getRequest(req, res,
+        `derived:com.google.step_count.delta:com.google.ios.fit:appleinc.:iphone:${process.env.DEVICE_UID}:top_level`,
+        'com.google.step_count.delta',
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+        Date.now()
+    );
+});
+
+app.get('/fit/distance', async (req, res) => {
+    getRequest(req, res,
+        `derived:com.google.distance.delta:com.google.ios.fit:appleinc.:iphone:${process.env.DEVICE_UID}:top_level`,
+        'com.google.distance.delta',
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+        Date.now()
+    );
 });
 
 app.get('/fit/calories', async (req, res) => {
-    if (!req.session.tokens) {
-        return res.redirect('/auth/login');
-    }
-
-    client.setCredentials(req.session.tokens);
-
-    const fitness = google.fitness({ version: 'v1', auth: client });
-
-    // Calculer les timestamps pour les 7 derniers jours
-    const endTime = Date.now(); // Maintenant
-    const startTime = endTime - 7 * 24 * 60 * 60 * 1000; // 7 jours en millisecondes
-
-    // ID de la source de données pour les pas
-    const dataSourceId = 'derived:com.google.calories.expended:com.google.ios.fit:appleinc.:iphone:770f269f:top_level';
-
-    // Créer une requête d'agrégation
-    const requestBody = {
-        aggregateBy: [{
-            dataTypeName: 'com.google.calories.expended',
-            dataSourceId: dataSourceId,
-        }],
-        bucketByTime: { durationMillis: 24 * 60 * 60 * 1000 }, // 1 jour
-        startTimeMillis: startTime,
-        endTimeMillis: endTime,
-    };
-
-    try {
-        const response = await fitness.users.dataset.aggregate({
-            userId: 'me',
-            requestBody: requestBody,
-        });
-        res.send(response.data);
-    } catch (err) {
-        return res.status(500).send('Erreur lors de la récupération des calories : ' + err.message);
-    }
+    getRequest(req, res,
+        `derived:com.google.calories.expended:com.google.ios.fit:appleinc.:iphone:${process.env.DEVICE_UID}:top_level`,
+        'com.google.calories.expended',
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+        Date.now()
+    );
 });
 
 app.get('/fit/active-minutes', async (req, res) => {
-    if (!req.session.tokens) {
-        return res.redirect('/auth/login');
-    }
-
-    client.setCredentials(req.session.tokens);
-
-    const fitness = google.fitness({ version: 'v1', auth: client });
-
-    // Calculer les timestamps pour les 7 derniers jours
-    const endTime = Date.now(); // Maintenant
-    const startTime = endTime - 7 * 24 * 60 * 60 * 1000; // 7 jours en millisecondes
-
-    // ID de la source de données pour les pas
-    const dataSourceId = 'derived:com.google.active_minutes:com.google.ios.fit:appleinc.:iphone:770f269f:top_level';
-
-    // Créer une requête d'agrégation
-    const requestBody = {
-        aggregateBy: [{
-            dataTypeName: 'com.google.active_minutes',
-            dataSourceId: dataSourceId,
-        }],
-        bucketByTime: { durationMillis: 24 * 60 * 60 * 1000 }, // 1 jour
-        startTimeMillis: startTime,
-        endTimeMillis: endTime,
-    };
-
-    try {
-        const response = await fitness.users.dataset.aggregate({
-            userId: 'me',
-            requestBody: requestBody,
-        });
-        res.send(response.data);
-    } catch (err) {
-        return res.status(500).send('Erreur lors de la récupération des minutes actives : ' + err.message);
-    }
+    getRequest(req, res,
+        `derived:com.google.active_minutes:com.google.ios.fit:appleinc.:iphone:${process.env.DEVICE_UID}:top_level`,
+        'com.google.active_minutes',
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+        Date.now()
+    );
 });
 
 app.get('/fit/sleep', async (req, res) => {
-    if (!req.session.tokens) {
-        return res.redirect('/auth/login');
-    }
-
-    client.setCredentials(req.session.tokens);
-
-    const fitness = google.fitness({ version: 'v1', auth: client });
-
-    // Calculer les timestamps pour les 7 derniers jours
-    const endTime = Date.now(); // Maintenant
-    const startTime = endTime - 7 * 24 * 60 * 60 * 1000; // 7 jours en millisecondes
-
-    // ID de la source de données pour les pas
-    const dataSourceId = 'derived:com.google.sleep.segment:com.google.ios.fit:appleinc.:iphone:770f269f:top_level';
-
-    // Créer une requête d'agrégation
-    const requestBody = {
-        aggregateBy: [{
-            dataTypeName: 'com.google.sleep.segment',
-            dataSourceId: dataSourceId,
-        }],
-        bucketByTime: { durationMillis: 24 * 60 * 60 * 1000 }, // 1 jour
-        startTimeMillis: startTime,
-        endTimeMillis: endTime,
-    };
-
-    try {
-        const response = await fitness.users.dataset.aggregate({
-            userId: 'me',
-            requestBody: requestBody,
-        });
-        res.send(response.data);
-    } catch (err) {
-        return res.status(500).send('Erreur lors de la récupération des données de sommeil : ' + err.message);
-    }
+    getRequest(req, res,
+        'derived:com.google.sleep.segment:com.google.android.gms:merge_sleep_segments',
+        'com.google.sleep.segment',
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+        Date.now()
+    );
 });
 
-app.get('/fit/heart-rate', async (req, res) => {
-    if (!req.session.tokens) {
-        return res.redirect('/auth/login');
-    }
-
-    client.setCredentials(req.session.tokens);
-
-    const fitness = google.fitness({ version: 'v1', auth: client });
-
-    // Calculer les timestamps pour les 7 derniers jours
-    const endTime = Date.now(); // Maintenant
-    const startTime = endTime - 7 * 24 * 60 * 60 * 1000; // 7 jours en millisecondes
-
-    // ID de la source de données pour les pas
-    const dataSourceId = 'derived:com.google.heart_rate.bpm:com.google.ios.fit:appleinc.:iphone:770f269f:top_level';
-
-    // Créer une requête d'agrégation
-    const requestBody = {
-        aggregateBy: [{
-            dataTypeName: 'com.google.heart_rate.bpm',
-            dataSourceId: dataSourceId,
-        }],
-        bucketByTime: { durationMillis: 24 * 60 * 60 * 1000 }, // 1 jour
-        startTimeMillis: startTime,
-        endTimeMillis: endTime,
-    };
-
-    try {
-        const response = await fitness.users.dataset.aggregate({
-            userId: 'me',
-            requestBody: requestBody,
-        });
-        res.send(response.data);
-    } catch (err) {
-        return res.status(500).send('Erreur lors de la récupération des données de fréquence cardiaque : ' + err.message);
-    }
+app.get('/fit/heart-minutes', async (req, res) => {
+    getRequest(req, res,
+        `derived:com.google.heart_minutes:com.google.ios.fit:appleinc.:iphone:${process.env.DEVICE_UID}:top_level`,
+        'com.google.heart_minutes',
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+        Date.now()
+    );
 });
 
-// Exemple de route protégée pour accéder aux données Google Fit
+app.get('/fit/activity', async (req, res) => {
+    getRequest(req, res,
+        `derived:com.google.activity.segment:com.google.ios.fit:appleinc.:iphone:${process.env.DEVICE_UID}:top_level`,
+        'com.google.activity.segment',
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+        Date.now()
+    );
+});
+
+app.get('/fit/weight', async (req, res) => {
+    getRequest(req, res,
+        'derived:com.google.weight:com.google.android.gms:merge_weight',
+        'com.google.weight',
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+        Date.now()
+    );
+});
+
+app.get('/fit/height', async (req, res) => {
+    getRequest(req, res,
+        'derived:com.google.height:com.google.android.gms:merge_height',
+        'com.google.height',
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+        Date.now()
+    );
+});
+
 app.get('/fit', async (req, res) => {
   if (!req.session.tokens) {
     return res.redirect('/auth/login');
@@ -262,10 +169,8 @@ app.get('/fit', async (req, res) => {
 
   client.setCredentials(req.session.tokens);
   
-  // Utilisez l'API Google Fit pour récupérer des données (exemple)
   const fitness = google.fitness({ version: 'v1', auth: client });
   
-  // Exemple de récupération des données d'activité
   fitness.users.dataSources.list({ userId: 'me' }, (err, response) => {
     if (err) {
       return res.status(500).send('Erreur lors de la récupération des données Google Fit');
@@ -322,7 +227,6 @@ app.get('/fit/devices', async (req, res) => {
     }
 });
 
-// Démarrez le serveur
 app.listen(PORT, () => {
   console.log(`Serveur démarré sur http://localhost:${PORT}`);
 });
