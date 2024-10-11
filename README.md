@@ -45,7 +45,7 @@ To run the application locally, follow these steps:
     ```
 4. Run the application:
     ```sh
-    streamlit run main.py
+    streamlit run app/main.py
     ```
 
 ## Contributing
