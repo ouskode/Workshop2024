@@ -1,7 +1,4 @@
 # Workshop2024
-Repository of workshop
-
-# Workshop2024
 
 Repository of workshop
 
@@ -36,7 +33,7 @@ To run the application locally, follow these steps:
 
 1. Clone the repository:
     ```sh
-    git clone https://github.com/yourusername/Workshop2024.git
+    [git clone https://github.com/yourusername/Workshop2024.git](https://github.com/ouskode/Workshop2024.git)
     ```
 2. Navigate to the project directory:
     ```sh
